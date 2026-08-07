@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Class Monitor — Absensi, Penilaian &amp; Poin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141d30; --bg-panel:rgba(27,37,64,0.6); --bg-card:rgba(32,43,74,0.5); --bg-input:rgba(24,33,58,0.7);
+    --line:rgba(140,175,230,0.18); --line-soft:rgba(140,175,230,0.12);
+    --blue:#5cb4ff; --blue-soft:#8fd0ff; --blue-dim:rgba(92,180,255,0.16);
+    --text:#f2f6fc; --muted:#a3b3d1;
+    --ok:#4fe0a0; --warn:#f5c065; --info:#8fd0ff; --bad:#f36a6a;
+    --shadow: 0 8px 30px rgba(10,15,30,0.35);
+    --ease: cubic-bezier(.22,.9,.32,1.1);
+    --glass-blur: blur(18px);
+  }
+  html[data-theme="light"]{
+    --bg:#f3f7fd; --bg-panel:rgba(255,255,255,0.65); --bg-card:rgba(255,255,255,0.55); --bg-input:rgba(255,255,255,0.7);
+    --line:rgba(30,60,110,0.12); --line-soft:rgba(30,60,110,0.08);
+    --blue:#2f7fe0; --blue-soft:#1f66c2; --blue-dim:rgba(47,127,224,0.09);
+    --text:#111a2b; --muted:#5c6c85;
+    --ok:#1f9d68; --warn:#a97113; --info:#2f7fe0; --bad:#c93636;
+    --shadow: 0 8px 24px rgba(30,50,90,0.1);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, var(--blue-dim), transparent),
+      radial-gradient(ellipse 900px 600px at 90% 10%, var(--blue-dim), transparent),
+      var(--bg);
+    color:var(--text); font-family:'Inter', sans-serif; min-height:100vh; background-attachment:fixed;
+    transition: background-color .25s ease, color .25s ease;
+  }
+  .grid-overlay{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: linear-gradient(rgba(125,165,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(125,165,255,0.035) 1px, transparent 1px);
+    background-size:42px 42px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%);
+  }
+  html[data-theme="light"] .grid-overlay{ opacity:0.5; }
+  a{color:inherit;} button{font-family:inherit;}
+  ::selection{ background: rgba(61,165,255,0.28); }
+
+  header{
+    position:sticky; top:0; z-index:50;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 5vw; background:rgba(10,15,26,0.78); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line); flex-wrap:wrap;
+  }
+  html[data-theme="light"] header{ background:rgba(255,255,255,0.82); }
+  .brand{display:flex; align-items:center; gap:12px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:1.02rem; cursor:pointer;}
+  .brand .dot{width:10px; height:10px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 3px var(--blue-dim),0 0 12px var(--blue); animation:pulse 2.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.45;}}
+  .brand small{display:block; color:var(--muted); font-weight:400; font-family:'JetBrains Mono',monospace; font-size:0.66rem; letter-spacing:0.06em;}
+  .header-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  #clock{font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--blue);}
+
+  .btn{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; letter-spacing:0.03em;
+    color:var(--text); background:var(--bg-panel); border:1px solid var(--line);
+    padding:8px 14px; border-radius:8px; cursor:pointer; transition:transform .18s var(--ease), border-color .18s ease, color .18s ease, background .18s ease; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{border-color:var(--blue); color:var(--blue); transform:translateY(-1px);}
+  .btn:active{transform:translateY(0) scale(0.96);}
+  .btn:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .btn.primary{background:linear-gradient(100deg, var(--blue-dim), rgba(61,165,255,0.22)); border-color:rgba(61,165,255,0.45); color:var(--blue);}
+  .btn.primary:hover{border-color:var(--blue);}
+  .btn.danger:hover{border-color:var(--bad); color:var(--bad);}
+  .btn.small{padding:5px 10px; font-size:0.66rem;}
+  .icon-toggle{width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; padding:0;}
+  input[type=file]{display:none;}
+
+  main{position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:0 5vw 10vh;}
+
+  /* ===== AUTH ===== */
+  #authView{ display:none; min-height:85vh; align-items:center; justify-content:center; padding:6vh 5vw; position:relative; z-index:1; }
+  .auth-card{ width:100%; max-width:400px; background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:16px; padding:34px 30px; box-shadow:var(--shadow); }
+  .auth-eyebrow{ display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:0.68rem; letter-spacing:0.14em; color:var(--blue); border:1px solid rgba(61,165,255,0.35); background:var(--blue-dim); padding:4px 10px; border-radius:30px; margin-bottom:16px; text-transform:uppercase;}
+  .auth-card h2{ font-family:'Space Grotesk',sans-serif; font-size:1.5rem; margin-bottom:6px; }
+  .auth-card p.sub{ color:var(--muted); font-size:0.85rem; margin-bottom:22px; }
+  .auth-tabs{ display:flex; gap:6px; margin-bottom:22px; background:var(--bg-input); border:1px solid var(--line); border-radius:10px; padding:4px; }
+  .auth-tab-btn{ flex:1; background:none; border:none; padding:8px; border-radius:7px; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:0.75rem; cursor:pointer; }
+  .auth-tab-btn.active{ background:var(--blue); color:#04101f; font-weight:600; }
+  .auth-field{ margin-bottom:14px; display:flex; flex-direction:column; gap:6px; }
+  .auth-field label{ font-family:'JetBrains Mono',monospace; font-size:0.66rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; }
+  .auth-field input{ width:100%; }
+  .auth-error{ background:rgba(243,106,106,0.1); border:1px solid rgba(243,106,106,0.4); color:var(--bad); font-size:0.78rem; padding:10px 12px; border-radius:8px; margin-bottom:14px; display:none; }
+  .auth-submit{ width:100%; justify-content:center; padding:11px; font-size:0.8rem; margin-top:4px; }
+
+  /* ===== HOME ===== */
+  #homeView{display:none;}
+  .hero{padding:6vh 0 4vh;}
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:0.72rem;
+    letter-spacing:0.14em; color:var(--blue); border:1px solid rgba(61,165,255,0.35); background:var(--blue-dim);
+    padding:5px 12px; border-radius:30px; margin-bottom:20px; text-transform:uppercase;
+  }
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(1.9rem,4.5vw,3rem); line-height:1.1; letter-spacing:-0.01em; max-width:16ch;}
+  h1 .accent{ color:var(--blue); }
+  .hero p.sub{margin-top:16px; color:var(--muted); font-size:1rem; max-width:56ch; line-height:1.6;}
+
+  .welcome-banner{
+    display:flex; align-items:center; gap:16px; background:linear-gradient(120deg, var(--blue-dim), transparent 70%), var(--bg-card);
+    backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid var(--line); border-radius:16px; padding:22px 26px; margin-bottom:22px; animation: cardsFadeIn .5s var(--ease);
+  }
+  .welcome-banner .wave{ font-size:2rem; flex-shrink:0; animation: wave 2.2s ease-in-out infinite; transform-origin:70% 70%; }
+  @keyframes wave{ 0%,100%{transform:rotate(0deg);} 15%{transform:rotate(14deg);} 30%{transform:rotate(-8deg);} 45%{transform:rotate(14deg);} 60%{transform:rotate(0deg);} }
+  .welcome-banner h3{ font-family:'Space Grotesk',sans-serif; font-size:1.15rem; margin-bottom:4px; }
+  .welcome-banner p{ color:var(--muted); font-size:0.86rem; line-height:1.5; }
+
+  .hadith-card{
+    position:relative; background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:16px;
+    padding:26px 28px; margin-bottom:40px; overflow:hidden; min-height:150px;
+    animation: cardsFadeIn .5s var(--ease) .05s backwards;
+  }
+  .hadith-card::before{
+    content:"❝"; position:absolute; top:6px; left:16px; font-size:5rem; color:var(--blue-dim); font-family:Georgia,serif; line-height:1;
+  }
+  .hadith-tag{ display:inline-flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:0.66rem; letter-spacing:0.12em; color:var(--blue); text-transform:uppercase; margin-bottom:14px; }
+  .hadith-body{ position:relative; z-index:1; opacity:1; transition:opacity .25s ease; }
+  .hadith-body.fading{ opacity:0; }
+  .hadith-arabic{ font-family:'Amiri', serif; direction:rtl; font-size:1.7rem; line-height:2.1; color:var(--text); margin-bottom:14px; }
+  .hadith-translation{ font-size:0.95rem; line-height:1.65; color:var(--text); font-style:italic; margin-bottom:8px; }
+  .hadith-source{ font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--muted); }
+  .hadith-dots{ display:flex; gap:6px; margin-top:18px; position:relative; z-index:1; }
+  .hadith-dots button{ width:7px; height:7px; border-radius:50%; border:none; background:var(--line); cursor:pointer; padding:0; transition: background .2s ease, transform .2s ease; }
+  .hadith-dots button.active{ background:var(--blue); transform:scale(1.3); }
+
+  .wa-float{
+    position:fixed; right:26px; bottom:26px; z-index:60;
+    width:56px; height:56px; border-radius:50%; background:#25D366;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 22px rgba(37,211,102,0.45);
+    cursor:pointer; transition: transform .2s var(--ease), box-shadow .2s ease;
+    animation: waPulse 2.6s ease-in-out infinite;
+  }
+  .wa-float:hover{ transform:scale(1.08); box-shadow:0 10px 28px rgba(37,211,102,0.6); }
+  .wa-float:active{ transform:scale(0.92); }
+  .wa-float svg{ width:28px; height:28px; }
+  @keyframes waPulse{
+    0%,100%{ box-shadow:0 8px 22px rgba(37,211,102,0.45); }
+    50%{ box-shadow:0 8px 30px rgba(37,211,102,0.7); }
+  }
+  .wa-tooltip{
+    position:absolute; right:66px; bottom:14px; background:var(--bg-panel); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid var(--line); color:var(--text); padding:7px 12px; border-radius:9px;
+    font-family:'Inter',sans-serif; font-size:0.78rem; white-space:nowrap; opacity:0; pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease; transform:translateX(6px); box-shadow:var(--shadow);
+  }
+  .wa-float:hover .wa-tooltip{ opacity:1; transform:translateX(0); }
+
+  .level-section{margin-top:52px;}
+  .level-head{display:flex; align-items:baseline; gap:16px; margin-bottom:22px; padding-bottom:12px; border-bottom:1px solid var(--line);}
+  .level-head .tag{font-family:'JetBrains Mono',monospace; color:var(--blue); font-size:0.72rem; letter-spacing:0.1em; border:1px solid rgba(61,165,255,0.35); background:var(--blue-dim); padding:4px 10px; border-radius:6px;}
+  .level-head h2{font-family:'Space Grotesk',sans-serif; font-size:1.3rem; font-weight:600;}
+
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;}
+  .card{
+    position:relative; text-align:left; background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:14px;
+    padding:20px; overflow:hidden; cursor:pointer; transition:transform .25s var(--ease), border-color .25s ease, box-shadow .25s ease;
+  }
+  .card::before{content:""; position:absolute; inset:0; background:radial-gradient(220px circle at var(--mx,50%) var(--my,0%), var(--blue-dim), transparent 60%); opacity:0; transition:opacity .3s ease; pointer-events:none;}
+  .card:hover{transform:translateY(-5px) scale(1.015); border-color:rgba(92,180,255,0.55); box-shadow:var(--shadow);}
+  .card:active{transform:translateY(-2px) scale(0.99);}
+  .card:hover::before{opacity:1;}
+  .card:focus-visible{outline:2px solid var(--blue); outline-offset:3px;}
+  .card-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
+  .node-id{font-family:'JetBrains Mono',monospace; font-size:0.66rem; color:var(--muted); letter-spacing:0.08em;}
+  .class-name{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1.7rem; color:var(--blue); letter-spacing:-0.01em;}
+  .class-desc{color:var(--muted); font-size:0.8rem; margin-top:4px;}
+
+  /* ===== WORKSPACE ===== */
+  #workspace{display:none;}
+  .ws-head{display:flex; align-items:center; gap:14px; padding:30px 0 20px; flex-wrap:wrap;}
+  .ws-head h2{font-family:'Space Grotesk',sans-serif; font-size:1.8rem; font-weight:700;}
+  .ws-head .meta{color:var(--muted); font-size:0.85rem; font-family:'JetBrains Mono',monospace;}
+
+  .tabs{display:flex; gap:6px; border-bottom:1px solid var(--line); margin-bottom:26px; flex-wrap:wrap;}
+  .tab-btn{
+    background:none; border:none; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:0.78rem;
+    padding:10px 16px; cursor:pointer; border-bottom:2px solid transparent; letter-spacing:0.03em;
+    transition: color .18s ease, border-color .18s ease;
+  }
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block; animation: tabFadeIn .38s var(--ease);}
+  @keyframes tabFadeIn{
+    from{ opacity:0; transform:translateY(8px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  @keyframes cardsFadeIn{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .toolbar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-family:'JetBrains Mono',monospace; font-size:0.66rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase;}
+  input[type=date], input[type=month], input[type=text], input[type=number], input[type=email], input[type=password], textarea, select{
+    background:var(--bg-input); border:1px solid var(--line); color:var(--text); border-radius:8px;
+    padding:9px 12px; font-family:'JetBrains Mono',monospace; font-size:0.85rem; outline:none;
+  }
+  input:focus, textarea:focus, select:focus{border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-dim);}
+  textarea{font-family:'Inter',sans-serif; resize:vertical;}
+
+  .cat-tabs{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .cat-btn{
+    background:var(--bg-panel); border:1px solid var(--line); color:var(--muted); padding:7px 14px; border-radius:20px;
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; cursor:pointer; letter-spacing:0.04em;
+    transition: transform .15s var(--ease), border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .cat-btn:active{transform:scale(0.94);}
+  .cat-btn.active{color:var(--blue); border-color:rgba(92,180,255,0.55); background:var(--blue-dim);}
+
+  table{width:100%; border-collapse:collapse; background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  thead th{
+    text-align:left; font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--muted); text-transform:uppercase;
+    letter-spacing:0.06em; padding:12px 14px; background:var(--bg-panel); border-bottom:1px solid var(--line);
+  }
+  tbody td{padding:10px 14px; border-bottom:1px solid var(--line-soft); font-size:0.88rem; vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--blue-dim);}
+  .num-cell{font-family:'JetBrains Mono',monospace;}
+  td input[type=number]{width:76px; padding:6px 8px; text-align:center;}
+  td input[type=text], td textarea{width:100%; min-width:120px;}
+  td textarea{min-height:56px;}
+
+  .status-pill{
+    border:1px solid var(--line); background:var(--bg-panel); color:var(--muted); width:34px; height:30px; border-radius:7px;
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; cursor:pointer; margin-right:5px;
+    transition: transform .15s var(--ease), border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .status-pill:hover{border-color:var(--text); color:var(--text); transform:translateY(-1px);}
+  .status-pill:active{transform:scale(0.88);}
+  .status-pill.on-H{background:rgba(79,224,160,0.18); border-color:var(--ok); color:var(--ok);}
+  .status-pill.on-S{background:rgba(245,192,101,0.18); border-color:var(--warn); color:var(--warn);}
+  .status-pill.on-I{background:rgba(124,198,255,0.18); border-color:var(--info); color:var(--info);}
+  .status-pill.on-A{background:rgba(243,106,106,0.18); border-color:var(--bad); color:var(--bad);}
+
+  .summary-row{display:flex; gap:22px; margin-top:16px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--muted);}
+  .summary-row b{color:var(--text);}
+
+  .empty-state{text-align:center; padding:50px 20px; color:var(--muted); font-size:0.9rem;}
+
+  .row-actions{display:flex; gap:8px;}
+  .icon-btn{background:none; border:none; color:var(--muted); cursor:pointer; padding:4px; border-radius:5px;}
+  .icon-btn:hover{color:var(--bad); background:rgba(243,106,106,0.1);}
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); z-index:100;
+    background:var(--bg-panel); border:1px solid var(--ok); color:var(--ok); padding:11px 20px; border-radius:10px;
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; opacity:0; pointer-events:none; transition:.25s ease;
+    display:flex; align-items:center; gap:8px; box-shadow:var(--shadow);
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast.error{ border-color:var(--bad); color:var(--bad); }
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(5,7,10,0.65); backdrop-filter:blur(3px); z-index:200;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--bg-panel); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:14px; padding:26px; max-width:440px; width:100%;}
+  .modal h3{font-family:'Space Grotesk',sans-serif; margin-bottom:8px;}
+  .modal p{color:var(--muted); font-size:0.85rem; margin-bottom:18px; line-height:1.5;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+
+  .recap-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:22px;}
+  .stat-card{background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:12px; padding:16px 18px;}
+  .stat-card .label{font-family:'JetBrains Mono',monospace; font-size:0.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;}
+  .stat-card .value{font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; margin-top:6px; color:var(--blue);}
+
+  .point-quick{display:flex; gap:6px; flex-wrap:wrap;}
+  .point-quick button{
+    width:34px; height:32px; border-radius:8px; border:1px solid var(--line); background:var(--bg-panel); color:var(--muted);
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; cursor:pointer; transition:transform .15s var(--ease), border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .point-quick button:hover{border-color:var(--blue); color:var(--blue);}
+  .point-quick button.active{background:var(--blue-dim); border-color:var(--blue); color:var(--blue); transform:scale(1.06);}
+  .point-quick button:active{transform:scale(0.9);}
+  .point-badge{display:inline-flex; align-items:center; gap:4px; background:var(--blue-dim); color:var(--blue); border:1px solid rgba(92,180,255,0.4); padding:2px 9px; border-radius:20px; font-family:'JetBrains Mono',monospace; font-size:0.75rem; font-weight:600;}
+  .leaderboard-row{display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line-soft);}
+  .leaderboard-row:last-child{border-bottom:none;}
+  .leaderboard-rank{font-family:'JetBrains Mono',monospace; color:var(--muted); font-size:0.8rem; width:22px;}
+  .leaderboard-name{flex:1; font-size:0.9rem;}
+  .leaderboard-bar-wrap{flex:2; background:var(--line-soft); border-radius:6px; height:8px; overflow:hidden;}
+  .leaderboard-bar{height:100%; background:linear-gradient(90deg, var(--blue), var(--blue-soft)); border-radius:6px; transition:width .4s var(--ease);}
+
+  .materi-summary{
+    display:flex; align-items:center; gap:18px; background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid var(--line); border-radius:14px; padding:20px 22px; flex-wrap:wrap;
+  }
+  .materi-summary .label{ font-family:'JetBrains Mono',monospace; font-size:0.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
+  .materi-summary .topik{ font-family:'Space Grotesk',sans-serif; font-size:1.15rem; font-weight:600; }
+  .materi-summary .tanggal{ color:var(--muted); font-size:0.8rem; margin-top:2px; }
+  .telat-badge{ font-family:'JetBrains Mono',monospace; font-size:0.78rem; font-weight:600; padding:6px 14px; border-radius:20px; white-space:nowrap; }
+  .telat-badge.ok{ background:rgba(79,224,160,0.16); color:var(--ok); border:1px solid rgba(79,224,160,0.4); }
+  .telat-badge.warn{ background:rgba(245,192,101,0.16); color:var(--warn); border:1px solid rgba(245,192,101,0.4); }
+  .telat-badge.bad{ background:rgba(243,106,106,0.16); color:var(--bad); border:1px solid rgba(243,106,106,0.4); }
+
+  .card-materi-line{ display:flex; align-items:center; gap:6px; margin-top:10px; font-size:0.72rem; }
+  .card-materi-line .dot-status{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .card-materi-line .dot-status.ok{ background:var(--ok); }
+  .card-materi-line .dot-status.warn{ background:var(--warn); }
+  .card-materi-line .dot-status.bad{ background:var(--bad); }
+  .card-materi-line .txt{ color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  footer{position:relative; z-index:1; border-top:1px solid var(--line); padding:24px 5vw; margin-top:20px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; color:var(--muted); font-size:0.78rem; font-family:'JetBrains Mono',monospace;}
+
+  #recapPrintHeader{ display:none; }
+  #kalkPrintHeader{ display:none; }
+
+  @media(max-width:640px){
+    header{padding:14px 5vw;} #clock{display:none;}
+    table{display:block; overflow-x:auto; white-space:nowrap;}
+  }
+  @media print{
+    body *{ visibility:hidden; }
+    #panel-rekap, #panel-rekap *, #panel-kalkulator, #panel-kalkulator *{ visibility:visible; }
+    #panel-rekap, #panel-kalkulator{ position:absolute; left:0; top:0; width:100%; }
+    #recapPrintHeader, #kalkPrintHeader{ display:block !important; margin-bottom:18px; }
+    #recapPrintHeader h2, #kalkPrintHeader h2{ font-family:'Space Grotesk',sans-serif; font-size:1.4rem; color:#000; }
+    #recapPrintHeader div, #kalkPrintHeader div{ font-size:0.85rem; color:#000; margin-top:4px; }
+    .toolbar, .wa-float{ display:none !important; }
+    body, #panel-rekap, #panel-kalkulator{ background:#fff !important; color:#000 !important; }
+    table{ border-color:#999 !important; backdrop-filter:none !important; }
+    thead th{ background:#eee !important; color:#000 !important; border-color:#999 !important; }
+    tbody td{ color:#000 !important; border-color:#ccc !important; }
+    .stat-card{ background:#f5f5f5 !important; backdrop-filter:none !important; border-color:#ccc !important; }
+    .stat-card .value, .stat-card .label{ color:#000 !important; }
+    .point-badge{ background:#eee !important; color:#000 !important; border-color:#999 !important; }
+    input, input[type=number]{ border:none !important; background:none !important; color:#000 !important; padding:2px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grid-overlay"></div>
+<a class="wa-float" id="waFloat" href="https://wa.me/6288213860108" target="_blank" rel="noopener" aria-label="Hubungi Customer Care via WhatsApp">
+  <svg viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.004 2C6.486 2 2.01 6.476 2.01 12c0 1.85.5 3.639 1.447 5.21L2 22l4.906-1.43A9.96 9.96 0 0012.004 22C17.522 22 22 17.524 22 12S17.522 2 12.004 2zm0 18.09a8.06 8.06 0 01-4.4-1.29l-.316-.19-3.196.93.94-3.113-.207-.32A8.07 8.07 0 013.94 12c0-4.454 3.62-8.09 8.064-8.09 4.442 0 8.06 3.636 8.06 8.09 0 4.455-3.618 8.09-8.06 8.09z"/></svg>
+  <span class="wa-tooltip">Customer Care — 0882-1386-0108</span>
+</a>
+
+<header>
+  <div class="brand" onclick="showHome()">
+    <span class="dot"></span>
+    <div>Class Monitor<small>ABSENSI, PENILAIAN &amp; POIN</small></div>
+  </div>
+  <div class="header-actions" id="headerActions" style="display:none;">
+    <span id="clock">--:--:--</span>
+    <button class="btn icon-toggle" id="themeToggle" title="Ganti tema" onclick="toggleTheme()">🌙</button>
+    <button class="btn" onclick="openSettings()">⚙ Pengaturan</button>
+    <button class="btn" onclick="exportBackup()">⬇ Cadangkan</button>
+    <label class="btn" for="importFile">⬆ Pulihkan</label>
+    <input type="file" id="importFile" accept="application/json">
+    <button class="btn danger" onclick="doLogout()">Keluar</button>
+  </div>
+</header>
+
+<!-- ===== AUTH VIEW ===== -->
+<div id="authView">
+  <div class="auth-card">
+    <div class="auth-eyebrow">● class monitor</div>
+    <h2 id="authTitle">Masuk ke akun</h2>
+    <p class="sub" id="authSub">Login untuk mengakses data absensi & nilai kelasmu.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab-btn active" data-mode="login" onclick="setAuthMode('login')">Masuk</button>
+      <button class="auth-tab-btn" data-mode="register" onclick="setAuthMode('register')">Daftar</button>
+    </div>
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-field" id="fieldName" style="display:none;">
+      <label>Nama Lengkap (dengan gelar)</label>
+      <input type="text" id="authName" placeholder="Ahmad Pandi Siregar, S.Pd">
+    </div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="nama@email.com">
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="authPassword" placeholder="Minimal 6 karakter">
+    </div>
+    <button class="btn primary auth-submit" id="authSubmitBtn" onclick="submitAuth()">Masuk</button>
+    <div id="forgotPasswordWrap" style="text-align:center; margin-top:14px;">
+      <button type="button" onclick="handleForgotPassword()" style="background:none; border:none; color:var(--blue); font-family:'JetBrains Mono',monospace; font-size:0.72rem; cursor:pointer; text-decoration:underline;">Lupa password?</button>
+    </div>
+  </div>
+</div>
+
+<main id="mainContent" style="display:none;">
+  <div id="homeView">
+    <div class="hero">
+      <div class="eyebrow">● <span id="classCountLabel">11 kelas</span></div>
+      <h1>Absensi, nilai &amp; laporan, <span class="accent">satu tempat.</span></h1>
+      <p class="sub">Pilih kelas untuk mulai catat kehadiran harian, input nilai per kategori, dan susun laporan pekanan wali kelas. Data tersimpan otomatis ke akunmu.</p>
+    </div>
+
+    <div class="welcome-banner">
+      <div class="wave">👋</div>
+      <div>
+        <h3 id="welcomeGreeting">Selamat datang!</h3>
+        <p id="welcomeMessage">Semoga hari mengajarmu lancar dan penuh berkah.</p>
+      </div>
+    </div>
+
+    <div class="hadith-card">
+      <div class="hadith-tag">◆ Hadits tentang menuntut ilmu</div>
+      <div class="hadith-body" id="hadithBody">
+        <div class="hadith-arabic" id="hadithArabic"></div>
+        <div class="hadith-translation" id="hadithTranslation"></div>
+        <div class="hadith-source" id="hadithSource"></div>
+      </div>
+      <div class="hadith-dots" id="hadithDots"></div>
+    </div>
+
+    <div id="levelsContainer"></div>
+  </div>
+
+  <div id="workspace">
+    <div class="ws-head">
+      <button class="btn" onclick="showHome()">← Kembali</button>
+      <div>
+        <h2 id="wsClassName">-</h2>
+        <div class="meta" id="wsClassMeta">-</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn" data-tab="siswa" onclick="switchTab('siswa')">Siswa</button>
+      <button class="tab-btn" data-tab="absensi" onclick="switchTab('absensi')">Absensi</button>
+      <button class="tab-btn" data-tab="nilai" onclick="switchTab('nilai')">Nilai</button>
+      <button class="tab-btn" data-tab="poin" onclick="switchTab('poin')">Poin</button>
+      <button class="tab-btn" data-tab="materi" onclick="switchTab('materi')">Materi</button>
+      <button class="tab-btn" data-tab="rekap" onclick="switchTab('rekap')">Rekap Bulanan</button>
+      <button class="tab-btn" data-tab="kalkulator" onclick="switchTab('kalkulator')">Kalkulator Semester</button>
+    </div>
+
+    <!-- SISWA -->
+    <div class="tab-panel" id="panel-siswa">
+      <div class="toolbar">
+        <div class="field" style="flex:1; min-width:200px;">
+          <label>Nama siswa baru</label>
+          <input type="text" id="newStudentName" placeholder="contoh: Ahmad Fauzi">
+        </div>
+        <button class="btn primary" onclick="addStudent()" style="align-self:flex-end;">+ Tambah</button>
+      </div>
+      <div class="toolbar" style="align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:260px;">
+          <label>Tambah banyak sekaligus (satu nama per baris)</label>
+          <textarea id="bulkStudents" rows="3" placeholder="Ahmad Fauzi&#10;Bunga Citra&#10;Cici Amelia"></textarea>
+        </div>
+        <button class="btn" onclick="addBulkStudents()">+ Tambah Semua</button>
+      </div>
+      <div id="studentTableWrap"></div>
+    </div>
+
+    <!-- ABSENSI -->
+    <div class="tab-panel" id="panel-absensi">
+      <div class="toolbar">
+        <div class="field">
+          <label>Tanggal</label>
+          <input type="date" id="attDate">
+        </div>
+        <button class="btn" onclick="markAllPresent()">✓ Tandai Semua Hadir</button>
+      </div>
+      <div id="attendanceTableWrap"></div>
+      <div class="summary-row" id="attSummary"></div>
+    </div>
+
+    <!-- NILAI -->
+    <div class="tab-panel" id="panel-nilai">
+      <div class="summary-row" style="margin-bottom:18px;">Input nilai Tugas Harian tiap kali kamu menilai (bisa lebih dari 1x sebulan). Saat direkap bulanan, nilai tiap siswa otomatis dijumlah lalu dibagi jumlah kali penilaian — jadi kamu tidak perlu menghitung manual. Untuk nilai UH, UTS, dan UAS, isi di tab Kalkulator Semester.</div>
+      <div class="toolbar">
+        <div class="field">
+          <label>Tanggal penilaian ini</label>
+          <input type="date" id="nilaiDate">
+        </div>
+      </div>
+      <div id="gradeTableWrap"></div>
+      <div class="toolbar" style="margin-top:14px;">
+        <button class="btn primary" onclick="saveNilaiSesi()">💾 Simpan Nilai Sesi Ini</button>
+      </div>
+
+      <div class="recap-stats" id="nilaiMonthStats" style="margin-top:30px;"></div>
+
+      <h4 style="font-family:'Space Grotesk',sans-serif; margin:20px 0 12px; font-size:1rem; color:var(--blue-soft);">Riwayat Sesi Bulan Ini</h4>
+      <div id="nilaiSesiHistoryWrap"></div>
+    </div>
+
+    <!-- POIN -->
+    <div class="tab-panel" id="panel-poin">
+      <div class="summary-row" style="margin-bottom:18px;">Beri poin tambahan (2–10) saat siswa menjawab atau bertanya dengan bagus. Poin yang terkumpul bisa diambil sebagian nanti sesuai kesepakatanmu dengan siswa (misalnya untuk menambah nilai).</div>
+      <div class="toolbar">
+        <div class="field">
+          <label>Tanggal</label>
+          <input type="date" id="poinDate">
+        </div>
+      </div>
+      <div id="poinFormWrap"></div>
+
+      <h4 style="font-family:'Space Grotesk',sans-serif; margin:30px 0 12px; font-size:1rem; color:var(--blue-soft);">🏆 Saldo Poin Siswa</h4>
+      <div id="poinLeaderboard"></div>
+
+      <h4 style="font-family:'Space Grotesk',sans-serif; margin:30px 0 12px; font-size:1rem; color:var(--blue-soft);">💳 Ambil Poin</h4>
+      <div class="summary-row" style="margin-bottom:14px;">Catat kalau ada poin yang diambil/dipakai sesuai kesepakatan dengan siswa. Ini hanya mengurangi saldo — tidak otomatis mengubah nilai apa pun, kamu edit nilainya sendiri di tab Kalkulator Semester.</div>
+      <div id="poinRedeemWrap"></div>
+
+      <h4 style="font-family:'Space Grotesk',sans-serif; margin:30px 0 12px; font-size:1rem; color:var(--blue-soft);">Riwayat Poin</h4>
+      <div id="poinHistoryWrap"></div>
+    </div>
+
+    <!-- MATERI -->
+    <div class="tab-panel" id="panel-materi">
+      <div class="summary-row" style="margin-bottom:18px;">Catat materi terakhir yang diajarkan di kelas ini — sistem otomatis menghitung sudah berapa pekan sejak catatan terakhir, supaya kamu tahu kelas mana yang sempat tertunda karena libur/acara sekolah.</div>
+
+      <div id="materiSummaryWrap" style="margin-bottom:26px;"></div>
+
+      <div class="toolbar" style="align-items:flex-end;">
+        <div class="field">
+          <label>Tanggal</label>
+          <input type="date" id="materiDate">
+        </div>
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Materi / topik yang diajarkan</label>
+          <input type="text" id="materiTopik" placeholder="contoh: Ekosistem &amp; rantai makanan">
+        </div>
+        <button class="btn primary" onclick="addMateriEntry()">+ Simpan Materi</button>
+      </div>
+
+      <h4 style="font-family:'Space Grotesk',sans-serif; margin:30px 0 12px; font-size:1rem; color:var(--blue-soft);">Riwayat Materi</h4>
+      <div id="materiHistoryWrap"></div>
+    </div>
+
+    <!-- REKAP -->
+    <div class="tab-panel" id="panel-rekap">
+      <div class="toolbar">
+        <div class="field">
+          <label>Bulan</label>
+          <input type="month" id="recapMonth">
+        </div>
+        <button class="btn" onclick="exportRecapCSV()">⬇ Ekspor CSV</button>
+        <button class="btn primary" onclick="window.print()">🖨 Unduh PDF</button>
+      </div>
+      <div id="recapPrintHeader">
+        <h2 id="recapPrintTitle">Rekap Bulanan</h2>
+        <div id="recapPrintMeta"></div>
+      </div>
+      <div class="recap-stats" id="recapStats"></div>
+      <div id="recapTableWrap"></div>
+    </div>
+
+    <!-- KALKULATOR SEMESTER -->
+    <div class="tab-panel" id="panel-kalkulator">
+      <div class="summary-row" style="margin-bottom:18px;">Pilih rentang bulan (misalnya 1 semester) untuk lihat rata-rata Tugas Harian di rentang itu. Nilai UH, UTS, dan UAS bisa langsung diedit di tabel ini — cocok dipakai saat mengisi rapor.</div>
+      <div class="toolbar">
+        <div class="field">
+          <label>Dari Bulan</label>
+          <input type="month" id="kalkBulanAwal">
+        </div>
+        <div class="field">
+          <label>Sampai Bulan</label>
+          <input type="month" id="kalkBulanAkhir">
+        </div>
+        <button class="btn" onclick="exportKalkulatorCSV()">⬇ Ekspor CSV</button>
+        <button class="btn primary" onclick="window.print()">🖨 Unduh PDF</button>
+      </div>
+      <div id="kalkPrintHeader">
+        <h2 id="kalkPrintTitle">Kalkulator Semester</h2>
+        <div id="kalkPrintMeta"></div>
+      </div>
+      <div id="kalkulatorTableWrap"></div>
+    </div>
+  </div>
+</main>
+
+<footer id="siteFooter" style="display:none;">
+  <span>© <span id="year"></span> Hakim Industries — Class Monitor</span>
+  <span id="dailyQuote">-</span>
+</footer>
+
+<div class="toast" id="toast">✓ Tersimpan</div>
+
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <h3 id="confirmTitle">Konfirmasi</h3>
+    <p id="confirmText"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeConfirm()">Batal</button>
+      <button class="btn danger" id="confirmActionBtn">Ya, lanjutkan</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h3>Pengaturan Akun</h3>
+    <p>Nama ini dipakai untuk sapaan di dashboard.</p>
+    <div class="auth-field">
+      <label>Nama Lengkap (dengan gelar)</label>
+      <input type="text" id="setName">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeSettings()">Batal</button>
+      <button class="btn primary" onclick="saveSettings()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ============ FIREBASE ============ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-lite.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA8ulnMyuo9jsujXQ3_kI58eHvRMU4ey5Q",
+  authDomain: "absensi-nilai-sekolah.firebaseapp.com",
+  projectId: "absensi-nilai-sekolah",
+  storageBucket: "absensi-nilai-sekolah.firebasestorage.app",
+  messagingSenderId: "49475280624",
+  appId: "1:49475280624:web:088da11893751a98a56c35"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+/* ============ CONSTANTS ============ */
+const CLASS_LIST = [
+  ['7A',7],['7B',7],['7C',7],['7D',7],
+  ['8A',8],['8B',8],['8C',8],['8D',8],
+  ['9A',9],['9B',9],['9C',9]
+];
+const CATEGORIES = ['Tugas'];
+const FIXED_CATEGORIES = ['UH','UTS','UAS'];
+const STATUS = ['H','S','I','A'];
+const STATUS_LABEL = {H:'Hadir', S:'Sakit', I:'Izin', A:'Alpa'};
+const HADITHS = [
+  {
+    arabic: 'طَلَبُ الْعِلْمِ فَرِيضَةٌ عَلَى كُلِّ مُسْلِمٍ',
+    id: 'Menuntut ilmu itu wajib bagi setiap muslim.',
+    source: 'HR. Ibnu Majah'
+  },
+  {
+    arabic: 'مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا سَهَّلَ اللَّهُ لَهُ بِهِ طَرِيقًا إِلَى الْجَنَّةِ',
+    id: 'Barangsiapa menempuh suatu jalan untuk mencari ilmu, maka Allah akan mudahkan baginya jalan menuju surga.',
+    source: 'HR. Muslim'
+  },
+  {
+    arabic: 'مَنْ يُرِدِ اللَّهُ بِهِ خَيْرًا يُفَقِّهْهُ فِي الدِّينِ',
+    id: 'Barangsiapa yang Allah kehendaki kebaikan padanya, maka Allah akan memahamkannya dalam urusan agama.',
+    source: 'HR. Bukhari &amp; Muslim'
+  },
+  {
+    arabic: 'الْعُلَمَاءُ وَرَثَةُ الْأَنْبِيَاءِ',
+    id: 'Orang-orang berilmu adalah pewaris para nabi.',
+    source: 'HR. Abu Dawud &amp; Tirmidzi'
+  },
+  {
+    arabic: 'مَنْ خَرَجَ فِي طَلَبِ الْعِلْمِ فَهُوَ فِي سَبِيلِ اللَّهِ حَتَّى يَرْجِعَ',
+    id: 'Barangsiapa keluar untuk mencari ilmu, maka ia berada di jalan Allah hingga ia kembali.',
+    source: 'HR. Tirmidzi'
+  },
+  {
+    arabic: 'فَضْلُ الْعَالِمِ عَلَى الْعَابِدِ كَفَضْلِ الْقَمَرِ عَلَى سَائِرِ الْكَوَاكِبِ',
+    id: 'Keutamaan orang berilmu atas ahli ibadah, seperti keutamaan bulan atas seluruh bintang.',
+    source: 'HR. Abu Dawud &amp; Tirmidzi'
+  },
+  {
+    arabic: 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ',
+    id: "Sebaik-baik kalian adalah orang yang belajar Al-Qur'an dan mengajarkannya.",
+    source: 'HR. Bukhari'
+  }
+];
+let hadithIndex = 0;
+let hadithTimer = null;
+
+/* ============ STATE ============ */
+let currentUser = null;
+let state = null;
+let currentClass = null;
+let currentCategory = 'Tugas';
+
+function defaultClassData(code,tingkat){ return { name:code, tingkat, students:[], attendance:{}, grades:{}, gradesFixed:{}, points:[], pointRedemptions:[], materi:[] }; }
+function defaultState(){
+  const classes = {};
+  CLASS_LIST.forEach(([code,tingkat])=> classes[code] = defaultClassData(code,tingkat));
+  return {
+    profile: { name:'' },
+    classes
+  };
+}
+function ensureClassStructures(){
+  CLASS_LIST.forEach(([code,tingkat])=>{
+    if(!state.classes[code]) state.classes[code] = defaultClassData(code,tingkat);
+    if(!state.classes[code].points) state.classes[code].points = [];
+    if(!state.classes[code].materi) state.classes[code].materi = [];
+    if(!state.classes[code].pointRedemptions) state.classes[code].pointRedemptions = [];
+    if(!state.classes[code].gradesFixed) state.classes[code].gradesFixed = {};
+  });
+}
+
+async function loadState(){
+  const ref = doc(db,'users',currentUser.uid);
+  const snap = await getDoc(ref);
+  if(snap.exists()){
+    state = snap.data();
+    if(!state.profile) state.profile = { name:currentUser.displayName||'' };
+    if(!state.classes) state.classes = {};
+    ensureClassStructures();
+    migrateOldGrades();
+  } else {
+    state = defaultState();
+    state.profile.name = currentUser.displayName || '';
+    await setDoc(ref, state);
+  }
+}
+function migrateOldGrades(){
+  let changed = false;
+  Object.values(state.classes).forEach(cls=>{
+    if(!cls.grades) return;
+    if(!cls.gradesFixed) cls.gradesFixed = {};
+    Object.keys(cls.grades).forEach(sid=>{
+      const months = cls.grades[sid];
+      Object.keys(months).forEach(monthKey=>{
+        const cats = months[monthKey];
+        Object.keys(cats).forEach(cat=>{
+          const val = cats[cat];
+          // Nilai lama berupa angka tunggal -> jadikan 1 sesi
+          if(typeof val === 'number'){
+            cats[cat] = [{ date: monthKey+'-15', score: val }];
+            changed = true;
+          }
+          // UH/UTS/UAS versi sesi lama -> pindahkan ke nilai tunggal gradesFixed (rata-rata semua sesi yg ada)
+          if(cat!=='Tugas' && Array.isArray(cats[cat]) && cats[cat].length>0){
+            const scores = cats[cat].map(e=> e.score);
+            const avg = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+            if(!cls.gradesFixed[sid]) cls.gradesFixed[sid] = {};
+            if(cls.gradesFixed[sid][cat]===undefined) cls.gradesFixed[sid][cat] = avg;
+            delete cats[cat];
+            changed = true;
+          }
+        });
+      });
+    });
+  });
+  if(changed) save();
+}
+function save(){
+  const ref = doc(db,'users',currentUser.uid);
+  setDoc(ref, state).then(()=> flashToast()).catch(err=> flashToast('Gagal menyimpan: '+err.message, true));
+}
+
+/* ============ UTIL ============ */
+function uid(){ return 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function monthStr(){ const d=new Date(); return d.toISOString().slice(0,7); }
+function el(id){ return document.getElementById(id); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtTanggalPanjang(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+function fmtTanggalPendek(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+}
+
+let toastTimer;
+function flashToast(msg, isError){
+  const t = el('toast');
+  t.textContent = (isError?'✕ ':'✓ ') + (msg || 'Tersimpan');
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+let pendingConfirmAction = null;
+function askConfirm(title, text, onConfirm){
+  el('confirmTitle').textContent = title;
+  el('confirmText').textContent = text;
+  el('confirmModal').classList.add('show');
+  pendingConfirmAction = onConfirm;
+}
+window.closeConfirm = function(){ el('confirmModal').classList.remove('show'); pendingConfirmAction = null; };
+el('confirmActionBtn').addEventListener('click', ()=>{ if(pendingConfirmAction) pendingConfirmAction(); window.closeConfirm(); });
+
+/* ============ THEME ============ */
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  el('themeToggle').textContent = t==='light' ? '☀️' : '🌙';
+  localStorage.setItem('cm_theme', t);
+}
+window.toggleTheme = function(){
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur==='light' ? 'dark' : 'light');
+};
+applyTheme(localStorage.getItem('cm_theme') || 'dark');
+
+/* ============ CLOCK ============ */
+function tick(){ if(el('clock')) el('clock').textContent = new Date().toLocaleTimeString('id-ID',{hour12:false}); }
+tick(); setInterval(tick,1000);
+el('year').textContent = new Date().getFullYear();
+
+/* ============ AUTH UI ============ */
+let authMode = 'login';
+window.setAuthMode = function(mode){
+  authMode = mode;
+  document.querySelectorAll('.auth-tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===mode));
+  el('fieldName').style.display = mode==='register' ? 'flex' : 'none';
+  el('authTitle').textContent = mode==='register' ? 'Buat akun guru' : 'Masuk ke akun';
+  el('authSub').textContent = mode==='register' ? 'Daftar sekali, lalu langsung bisa dipakai.' : 'Login untuk mengakses data absensi & nilai kelasmu.';
+  el('authSubmitBtn').textContent = mode==='register' ? 'Daftar & Masuk' : 'Masuk';
+  el('authError').style.display = 'none';
+  el('forgotPasswordWrap').style.display = mode==='register' ? 'none' : 'block';
+};
+window.handleForgotPassword = async function(){
+  const email = el('authEmail').value.trim();
+  const errBox = el('authError');
+  errBox.style.display = 'none';
+  if(!email){
+    errBox.textContent = 'Isi dulu email kamu di kolom Email di atas, lalu klik "Lupa password?" lagi.';
+    errBox.style.display = 'block';
+    return;
+  }
+  try{
+    await sendPasswordResetEmail(auth, email);
+    errBox.style.display = 'none';
+    alert('Link reset password sudah dikirim ke ' + email + '. Cek inbox (atau folder spam) email tersebut.');
+  }catch(err){
+    errBox.textContent = translateAuthError(err);
+    errBox.style.display = 'block';
+  }
+};
+window.submitAuth = async function(){
+  const email = el('authEmail').value.trim();
+  const password = el('authPassword').value;
+  const name = el('authName').value.trim();
+  const errBox = el('authError');
+  errBox.style.display = 'none';
+  if(!email || !password){ errBox.textContent = 'Email dan password wajib diisi.'; errBox.style.display='block'; return; }
+  el('authSubmitBtn').textContent = 'Memproses...';
+  try{
+    if(authMode==='register'){
+      if(!name){ throw new Error('Nama lengkap wajib diisi.'); }
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(cred.user, { displayName: name });
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+  }catch(err){
+    errBox.textContent = translateAuthError(err);
+    errBox.style.display = 'block';
+    el('authSubmitBtn').textContent = authMode==='register' ? 'Daftar & Masuk' : 'Masuk';
+  }
+};
+function translateAuthError(err){
+  const code = err.code || '';
+  if(code.includes('email-already-in-use')) return 'Email ini sudah terdaftar. Coba menu Masuk.';
+  if(code.includes('invalid-email')) return 'Format email tidak valid.';
+  if(code.includes('weak-password')) return 'Password minimal 6 karakter.';
+  if(code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential')) return 'Email atau password salah.';
+  return err.message || 'Terjadi kesalahan, coba lagi.';
+}
+window.doLogout = function(){
+  askConfirm('Keluar dari akun?', 'Kamu perlu login lagi untuk mengakses data.', async ()=>{
+    await signOut(auth);
+  });
+};
+
+onAuthStateChanged(auth, async (user)=>{
+  if(user){
+    currentUser = user;
+    el('authView').style.display = 'none';
+    await loadState();
+    if(!state.profile.name && currentUser.displayName){
+      state.profile.name = currentUser.displayName;
+      save();
+    }
+    el('mainContent').style.display = 'block';
+    el('headerActions').style.display = 'flex';
+    el('siteFooter').style.display = 'flex';
+    showHome();
+  } else {
+    currentUser = null; state = null;
+    el('mainContent').style.display = 'none';
+    el('headerActions').style.display = 'none';
+    el('siteFooter').style.display = 'none';
+    el('authView').style.display = 'flex';
+  }
+});
+
+/* ============ SETTINGS MODAL ============ */
+window.openSettings = function(){
+  el('setName').value = state.profile.name || '';
+  el('settingsModal').classList.add('show');
+};
+window.closeSettings = function(){ el('settingsModal').classList.remove('show'); };
+window.saveSettings = function(){
+  state.profile.name = el('setName').value.trim();
+  save();
+  window.closeSettings();
+};
+
+/* ============ SAPAAN, KUTIPAN HARIAN & HADITS ============ */
+const WELCOME_LINES = [
+  'Semoga hari mengajarmu lancar, dan setiap ilmu yang dibagikan hari ini jadi ladang pahala yang terus mengalir.',
+  'Terima kasih sudah hadir untuk murid-muridmu hari ini — pekerjaan yang mungkin sederhana di mata dunia, tapi besar di sisi Allah.',
+  'Selamat bertugas! Semoga kesabaran mendidik hari ini dibalas dengan keberkahan yang tak terduga.',
+  'Setiap absen yang kamu catat, setiap nilai yang kamu isi — itu bagian dari amanah besar yang sedang kamu jaga.'
+];
+const DAILY_QUOTES = [
+  'Guru yang baik bisa mengubah satu kelas; guru yang hebat bisa mengubah satu generasi.',
+  'Ilmu yang diajarkan hari ini adalah warisan yang tidak pernah habis.',
+  'Kesabaran seorang guru adalah pupuk paling subur bagi tumbuhnya generasi terbaik.',
+  'Bukan seberapa cepat mereka paham, tapi seberapa tulus kita mendampingi.',
+  'Setiap murid yang kamu didik hari ini, adalah masa depan yang sedang kamu susun perlahan.',
+  'Mengajar bukan sekadar profesi, tapi ladang amal yang pahalanya terus mengalir.',
+  'Kelas yang ramai bukan gangguan — itu tanda ada kehidupan yang sedang tumbuh.',
+  'Guru hebat menyalakan api, bukan sekadar mengisi wadah.',
+  'Hari ini mungkin melelahkan, tapi jejakmu di hati murid akan bertahan lama.',
+  'Konsistensi kecil yang kamu lakukan tiap hari, itulah yang membentuk karakter mereka kelak.'
+];
+function dailyQuoteIndex(len){
+  const day = Math.floor(Date.now()/86400000);
+  return day % len;
+}
+function renderDailyQuote(){
+  const box = el('dailyQuote');
+  if(box) box.textContent = '"' + DAILY_QUOTES[dailyQuoteIndex(DAILY_QUOTES.length)] + '"';
+}
+function renderWelcome(){
+  const hour = new Date().getHours();
+  let greet = 'Selamat malam';
+  if(hour>=6 && hour<12) greet = 'Selamat pagi';
+  else if(hour>=12 && hour<15) greet = 'Selamat siang';
+  else if(hour>=15 && hour<18) greet = 'Selamat sore';
+  const name = (state && state.profile && state.profile.name) ? state.profile.name : 'Bapak/Ibu Guru';
+  el('welcomeGreeting').textContent = `${greet}, ${name}!`;
+  el('welcomeMessage').textContent = WELCOME_LINES[Math.floor(Math.random()*WELCOME_LINES.length)];
+}
+function renderHadith(){
+  const h = HADITHS[hadithIndex];
+  el('hadithArabic').textContent = h.arabic;
+  el('hadithTranslation').textContent = '"' + h.id + '"';
+  el('hadithSource').innerHTML = h.source;
+  el('hadithDots').innerHTML = HADITHS.map((_,i)=> `<button class="${i===hadithIndex?'active':''}" onclick="goToHadith(${i})" aria-label="Hadits ${i+1}"></button>`).join('');
+}
+window.goToHadith = function(i){
+  hadithIndex = i;
+  swapHadith();
+  restartHadithTimer();
+};
+function swapHadith(){
+  const body = el('hadithBody');
+  if(!body) return;
+  body.classList.add('fading');
+  setTimeout(()=>{ renderHadith(); body.classList.remove('fading'); }, 250);
+}
+function startHadithRotation(){
+  renderHadith();
+  restartHadithTimer();
+}
+function restartHadithTimer(){
+  clearInterval(hadithTimer);
+  hadithTimer = setInterval(()=>{
+    hadithIndex = (hadithIndex+1) % HADITHS.length;
+    swapHadith();
+  }, 8000);
+}
+function stopHadithRotation(){ clearInterval(hadithTimer); hadithTimer = null; }
+
+/* ============ HOME ============ */
+function renderHome(){
+  const levels = {7:[],8:[],9:[]};
+  CLASS_LIST.forEach(([code,tingkat])=> levels[tingkat].push(code));
+  let html = '';
+  [7,8,9].forEach(tingkat=>{
+    html += `<div class="level-section"><div class="level-head"><span class="tag">TINGKAT</span><h2>Kelas ${tingkat}</h2></div><div class="card-grid">`;
+    levels[tingkat].forEach(code=>{
+      const cls = state.classes[code];
+      const count = cls.students.length;
+      const lastMateri = getLastMateri(cls);
+      let materiLine;
+      if(!lastMateri){
+        materiLine = `<div class="card-materi-line"><span class="dot-status warn"></span><span class="txt">Belum ada catatan materi</span></div>`;
+      } else {
+        const weeks = weeksSince(lastMateri.date);
+        materiLine = `<div class="card-materi-line"><span class="dot-status ${telatBadgeClass(weeks)}"></span><span class="txt">${escapeHtml(lastMateri.topik)} — ${telatLabel(weeks)}</span></div>`;
+      }
+      html += `
+        <button class="card" onclick="openClass('${code}')">
+          <div class="card-top"><span class="node-id">NODE / ${code}</span></div>
+          <div class="class-name">${code}</div>
+          <div class="class-desc">${count} siswa terdaftar</div>
+          ${materiLine}
+        </button>`;
+    });
+    html += `</div></div>`;
+  });
+  el('levelsContainer').innerHTML = html;
+  document.querySelectorAll('.card').forEach(card=>{
+    card.addEventListener('mousemove', e=>{
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', ((e.clientX-r.left)/r.width*100)+'%');
+      card.style.setProperty('--my', ((e.clientY-r.top)/r.height*100)+'%');
+    });
+  });
+}
+window.showHome = function(){
+  if(!state) return;
+  el('homeView').style.display = 'block';
+  el('workspace').style.display = 'none';
+  currentClass = null;
+  renderHome();
+  renderWelcome();
+  renderDailyQuote();
+  startHadithRotation();
+};
+
+/* ============ WORKSPACE NAV ============ */
+window.openClass = function(code){
+  stopHadithRotation();
+  currentClass = code;
+  el('homeView').style.display = 'none';
+  el('workspace').style.display = 'block';
+  el('wsClassName').textContent = 'Kelas ' + code;
+  updateWsMeta();
+  el('attDate').value = todayStr();
+  el('nilaiDate').value = todayStr();
+  el('recapMonth').value = monthStr();
+  el('poinDate').value = todayStr();
+  el('materiDate').value = todayStr();
+  el('kalkBulanAwal').value = monthStr();
+  el('kalkBulanAkhir').value = monthStr();
+  switchTab('siswa');
+};
+function updateWsMeta(){
+  const cls = state.classes[currentClass];
+  el('wsClassMeta').textContent = `${cls.students.length} siswa terdaftar`;
+}
+window.switchTab = function(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.tab-panel').forEach(p=> p.classList.remove('active'));
+  el('panel-'+tab).classList.add('active');
+  if(tab==='siswa') renderStudents();
+  if(tab==='absensi') renderAttendance();
+  if(tab==='nilai') renderGrades();
+  if(tab==='rekap') renderRecap();
+  if(tab==='poin') renderPoin();
+  if(tab==='materi') renderMateri();
+  if(tab==='kalkulator') renderKalkulator();
+};
+
+/* ============ SISWA ============ */
+function getStudents(){ return state.classes[currentClass].students; }
+function renderStudents(){
+  const students = getStudents().slice().sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  const wrap = el('studentTableWrap');
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa di kelas ini. Tambahkan lewat form di atas.</div>`;
+    return;
+  }
+  let rows = students.map((s,i)=>`
+    <tr>
+      <td class="num-cell">${i+1}</td>
+      <td>${escapeHtml(s.name)}</td>
+      <td class="row-actions">
+        <button class="icon-btn" title="Hapus" onclick="removeStudent('${s.id}')">✕</button>
+      </td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table><thead><tr><th style="width:40px">#</th><th>Nama</th><th style="width:60px">Aksi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+window.addStudent = function(){
+  const input = el('newStudentName');
+  const name = input.value.trim();
+  if(!name) return;
+  getStudents().push({id: uid(), name});
+  input.value='';
+  save(); renderStudents(); updateWsMeta();
+};
+window.addBulkStudents = function(){
+  const ta = el('bulkStudents');
+  const names = ta.value.split('\n').map(n=>n.trim()).filter(Boolean);
+  if(names.length===0) return;
+  names.forEach(name=> getStudents().push({id: uid(), name}));
+  ta.value='';
+  save(); renderStudents(); updateWsMeta();
+  flashToast(`${names.length} siswa ditambahkan`);
+};
+window.removeStudent = function(id){
+  askConfirm('Hapus siswa?', 'Semua data absensi, nilai, dan poin siswa ini juga akan terhapus.', ()=>{
+    const cls = state.classes[currentClass];
+    cls.students = cls.students.filter(s=> s.id!==id);
+    Object.values(cls.attendance).forEach(dayRec=> delete dayRec[id]);
+    delete cls.grades[id];
+    if(cls.gradesFixed) delete cls.gradesFixed[id];
+    cls.points = (cls.points||[]).filter(p=> p.studentId!==id);
+    cls.pointRedemptions = (cls.pointRedemptions||[]).filter(p=> p.studentId!==id);
+    save(); renderStudents(); updateWsMeta();
+  });
+};
+
+/* ============ ABSENSI ============ */
+function renderAttendance(){
+  const date = el('attDate').value || todayStr();
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice().sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  const wrap = el('attendanceTableWrap');
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa. Tambahkan dulu di tab Siswa.</div>`;
+    el('attSummary').innerHTML = '';
+    return;
+  }
+  const dayRec = cls.attendance[date] || {};
+  let rows = students.map(s=>{
+    const current = dayRec[s.id];
+    const pills = STATUS.map(st=> `<button class="status-pill ${current===st ? 'on-'+st : ''}" onclick="setAttendance('${s.id}','${st}')">${st}</button>`).join('');
+    return `<tr><td>${escapeHtml(s.name)}</td><td>${pills}</td></tr>`;
+  }).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Nama</th><th>Status (H / S / I / A)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  renderAttSummary(date);
+}
+window.setAttendance = function(studentId, status){
+  const date = el('attDate').value || todayStr();
+  const cls = state.classes[currentClass];
+  if(!cls.attendance[date]) cls.attendance[date] = {};
+  if(cls.attendance[date][studentId]===status) delete cls.attendance[date][studentId];
+  else cls.attendance[date][studentId] = status;
+  save();
+  renderAttendance();
+};
+window.markAllPresent = function(){
+  const date = el('attDate').value || todayStr();
+  const cls = state.classes[currentClass];
+  if(cls.students.length===0) return;
+  if(!cls.attendance[date]) cls.attendance[date] = {};
+  cls.students.forEach(s=> cls.attendance[date][s.id]='H');
+  save(); renderAttendance();
+};
+function renderAttSummary(date){
+  const cls = state.classes[currentClass];
+  const dayRec = cls.attendance[date] || {};
+  const counts = {H:0,S:0,I:0,A:0};
+  Object.values(dayRec).forEach(st=>{ if(counts[st]!==undefined) counts[st]++; });
+  el('attSummary').innerHTML = STATUS.map(st=> `<span>${STATUS_LABEL[st]}: <b>${counts[st]}</b></span>`).join('');
+}
+el('attDate').addEventListener('change', renderAttendance);
+
+/* ============ NILAI ============ */
+function getCatEntries(cls, sid, monthKey, cat){
+  return (cls.grades[sid] && cls.grades[sid][monthKey] && cls.grades[sid][monthKey][cat]) || [];
+}
+function avgOf(arr){
+  if(!arr || arr.length===0) return null;
+  return Math.round(arr.reduce((a,e)=> a+e.score, 0) / arr.length);
+}
+
+function renderGrades(){
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice().sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  const wrap = el('gradeTableWrap');
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa. Tambahkan dulu di tab Siswa.</div>`;
+    el('nilaiMonthStats').innerHTML = '';
+    el('nilaiSesiHistoryWrap').innerHTML = '';
+    return;
+  }
+  let rows = students.map(s=> `<tr><td>${escapeHtml(s.name)}</td><td><input type="number" min="0" max="100" placeholder="-" data-sid="${s.id}"></td></tr>`).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Nama</th><th style="width:110px">Nilai ${currentCategory} (sesi ini)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  renderNilaiMonthStats();
+  renderNilaiSesiHistory();
+}
+
+window.saveNilaiSesi = function(){
+  const date = el('nilaiDate').value || todayStr();
+  const monthKey = date.slice(0,7);
+  const cls = state.classes[currentClass];
+  const inputs = document.querySelectorAll('#gradeTableWrap input[data-sid]');
+  let count = 0;
+  inputs.forEach(inp=>{
+    const raw = inp.value.trim();
+    if(raw===''){ return; }
+    const score = Math.max(0, Math.min(100, Number(raw)));
+    const sid = inp.dataset.sid;
+    if(!cls.grades[sid]) cls.grades[sid] = {};
+    if(!cls.grades[sid][monthKey]) cls.grades[sid][monthKey] = {};
+    if(!cls.grades[sid][monthKey][currentCategory]) cls.grades[sid][monthKey][currentCategory] = [];
+    cls.grades[sid][monthKey][currentCategory].push({ date, score });
+    count++;
+  });
+  if(count===0){ flashToast('Isi minimal satu nilai dulu', true); return; }
+  save();
+  renderGrades();
+  flashToast(`Nilai ${currentCategory} untuk ${count} siswa disimpan`);
+};
+
+function renderNilaiMonthStats(){
+  const date = el('nilaiDate').value || todayStr();
+  const monthKey = date.slice(0,7);
+  const cls = state.classes[currentClass];
+  const students = cls.students;
+  const perStudentAvg = students.map(s=> avgOf(getCatEntries(cls, s.id, monthKey, currentCategory))).filter(v=> v!==null);
+  const classAvg = perStudentAvg.length>0 ? Math.round(perStudentAvg.reduce((a,b)=>a+b,0)/perStudentAvg.length) : null;
+  const allDates = new Set();
+  students.forEach(s=> getCatEntries(cls, s.id, monthKey, currentCategory).forEach(e=> allDates.add(e.date)));
+  el('nilaiMonthStats').innerHTML = `
+    <div class="stat-card"><div class="label">Rata-rata ${currentCategory} Bulan Ini</div><div class="value">${classAvg===null?'-':classAvg}</div></div>
+    <div class="stat-card"><div class="label">Jumlah Sesi Penilaian</div><div class="value">${allDates.size}</div></div>
+  `;
+}
+
+function renderNilaiSesiHistory(){
+  const date = el('nilaiDate').value || todayStr();
+  const monthKey = date.slice(0,7);
+  const cls = state.classes[currentClass];
+  const students = cls.students;
+  const sessionMap = {};
+  students.forEach(s=>{
+    getCatEntries(cls, s.id, monthKey, currentCategory).forEach(e=>{
+      if(!sessionMap[e.date]) sessionMap[e.date] = [];
+      sessionMap[e.date].push(e.score);
+    });
+  });
+  const dates = Object.keys(sessionMap).sort().reverse();
+  const wrap = el('nilaiSesiHistoryWrap');
+  if(dates.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada sesi penilaian ${currentCategory} bulan ini.</div>`;
+    return;
+  }
+  let rows = dates.map(d=>{
+    const scores = sessionMap[d];
+    const avg = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+    return `<tr>
+      <td class="num-cell" style="width:140px;">${fmtTanggalPendek(d)}</td>
+      <td class="num-cell" style="width:100px;">${scores.length} siswa</td>
+      <td class="num-cell" style="width:100px;">Rata-rata: ${avg}</td>
+      <td style="width:50px;"><button class="icon-btn" onclick="removeNilaiSesi('${d}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Tanggal</th><th>Jumlah Dinilai</th><th>Rata-rata Sesi</th><th>Aksi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+window.removeNilaiSesi = function(date){
+  askConfirm('Hapus sesi penilaian ini?', `Semua nilai ${currentCategory} yang diinput pada ${fmtTanggalPendek(date)} akan dihapus.`, ()=>{
+    const monthKey = date.slice(0,7);
+    const cls = state.classes[currentClass];
+    cls.students.forEach(s=>{
+      const entries = getCatEntries(cls, s.id, monthKey, currentCategory);
+      if(entries.length===0) return;
+      cls.grades[s.id][monthKey][currentCategory] = entries.filter(e=> e.date!==date);
+    });
+    save();
+    renderNilaiMonthStats();
+    renderNilaiSesiHistory();
+  });
+};
+el('nilaiDate').addEventListener('change', ()=>{ renderNilaiMonthStats(); renderNilaiSesiHistory(); });
+
+/* ============ REKAP BULANAN ============ */
+function monthLabel(monthStr){
+  const [y,m] = monthStr.split('-').map(Number);
+  const d = new Date(y, m-1, 1);
+  return d.toLocaleDateString('id-ID', { month:'long', year:'numeric' });
+}
+function renderRecap(){
+  const month = el('recapMonth').value || monthStr();
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice().sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  const wrap = el('recapTableWrap');
+  const statsWrap = el('recapStats');
+  el('recapPrintTitle').textContent = `Rekap Bulanan — Kelas ${currentClass}`;
+  el('recapPrintMeta').innerHTML = `Bulan: <b>${monthLabel(month)}</b> &nbsp;&nbsp; Wali Kelas: <b>${escapeHtml(state.profile.name||'-')}</b> &nbsp;&nbsp; Dicetak: ${fmtTanggalPendek(todayStr())}`;
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa. Tambahkan dulu di tab Siswa.</div>`;
+    statsWrap.innerHTML = '';
+    return;
+  }
+  const attDatesInMonth = Object.keys(cls.attendance).filter(d=> d.startsWith(month));
+  const rowsData = students.map(s=>{
+    let hadir=0, total=0;
+    attDatesInMonth.forEach(d=>{
+      const st = cls.attendance[d][s.id];
+      if(st){ total++; if(st==='H') hadir++; }
+    });
+    const attPct = total>0 ? Math.round((hadir/total)*100) : null;
+    const catVals = CATEGORIES.map(c=>{
+      const entries = getCatEntries(cls, s.id, month, c);
+      return { avg: avgOf(entries), count: entries.length };
+    });
+    const present = catVals.filter(v=> v.avg!==null);
+    const avg = present.length>0 ? Math.round(present.reduce((a,v)=>a+v.avg,0)/present.length) : null;
+    const poinTotal = (cls.points||[]).filter(p=> p.studentId===s.id && p.date.startsWith(month)).reduce((a,p)=> a+p.poin, 0);
+    return { name:s.name, attPct, cats:catVals, avg, poinTotal };
+  });
+  const rows = rowsData.map(r=>`
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td class="num-cell">${r.attPct===null?'-':r.attPct+'%'}</td>
+      ${r.cats.map(v=> `<td class="num-cell">${v.avg===null?'-':v.avg}${v.count>1?` <span style="color:var(--muted); font-size:0.7em;">(${v.count}x)</span>`:''}</td>`).join('')}
+      <td class="num-cell"><b>${r.avg===null?'-':r.avg}</b></td>
+      <td class="num-cell">${r.poinTotal>0? '<span class="point-badge">'+r.poinTotal+' pts</span>' : '-'}</td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Nama</th><th>Kehadiran</th>${CATEGORIES.map(c=>`<th>${c}</th>`).join('')}<th>Rata-rata</th><th>Poin</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const attKnown = rowsData.filter(r=> r.attPct!==null);
+  const avgKnown = rowsData.filter(r=> r.avg!==null);
+  const classAtt = attKnown.length>0 ? Math.round(attKnown.reduce((a,r)=>a+r.attPct,0)/attKnown.length) : null;
+  const classAvg = avgKnown.length>0 ? Math.round(avgKnown.reduce((a,r)=>a+r.avg,0)/avgKnown.length) : null;
+  statsWrap.innerHTML = `
+    <div class="stat-card"><div class="label">Rata-rata Kehadiran Kelas</div><div class="value">${classAtt===null?'-':classAtt+'%'}</div></div>
+    <div class="stat-card"><div class="label">Rata-rata Nilai Kelas</div><div class="value">${classAvg===null?'-':classAvg}</div></div>
+    <div class="stat-card"><div class="label">Jumlah Siswa</div><div class="value">${students.length}</div></div>
+  `;
+  window._lastRecap = { month, rowsData };
+}
+el('recapMonth').addEventListener('change', renderRecap);
+window.exportRecapCSV = function(){
+  if(!window._lastRecap) return;
+  const { month, rowsData } = window._lastRecap;
+  const header = ['Nama','Kehadiran(%)', ...CATEGORIES, 'Rata-rata', 'Poin'];
+  const lines = [header.join(',')];
+  rowsData.forEach(r=>{
+    const line = [r.name, r.attPct===null?'':r.attPct, ...r.cats.map(v=>v.avg===null?'':v.avg), r.avg===null?'':r.avg, r.poinTotal||0];
+    lines.push(line.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `rekap-${currentClass}-${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/* ============ KALKULATOR SEMESTER ============ */
+function tugasRangeAvg(cls, sid, awal, akhir){
+  const months = (cls.grades[sid]) ? Object.keys(cls.grades[sid]) : [];
+  let scores = [];
+  months.forEach(m=>{
+    if(m>=awal && m<=akhir){
+      const entries = (cls.grades[sid][m] && cls.grades[sid][m]['Tugas']) || [];
+      entries.forEach(e=> scores.push(e.score));
+    }
+  });
+  if(scores.length===0) return { avg:null, count:0 };
+  return { avg: Math.round(scores.reduce((a,b)=>a+b,0)/scores.length), count: scores.length };
+}
+function getFixed(cls, sid, cat){
+  return (cls.gradesFixed[sid] && cls.gradesFixed[sid][cat]!==undefined) ? cls.gradesFixed[sid][cat] : null;
+}
+function renderKalkulator(){
+  const awal = el('kalkBulanAwal').value || monthStr();
+  let akhir = el('kalkBulanAkhir').value || monthStr();
+  if(akhir < awal){ akhir = awal; el('kalkBulanAkhir').value = awal; }
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice().sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  const wrap = el('kalkulatorTableWrap');
+
+  el('kalkPrintTitle').textContent = `Kalkulator Semester — Kelas ${currentClass}`;
+  el('kalkPrintMeta').innerHTML = `Periode: <b>${monthLabel(awal)} – ${monthLabel(akhir)}</b> &nbsp;&nbsp; Wali Kelas: <b>${escapeHtml(state.profile.name||'-')}</b> &nbsp;&nbsp; Dicetak: ${fmtTanggalPendek(todayStr())}`;
+
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa. Tambahkan dulu di tab Siswa.</div>`;
+    return;
+  }
+
+  const rowsData = students.map(s=>{
+    const tugas = tugasRangeAvg(cls, s.id, awal, akhir);
+    const uh = getFixed(cls, s.id, 'UH');
+    const uts = getFixed(cls, s.id, 'UTS');
+    const uas = getFixed(cls, s.id, 'UAS');
+    const vals = [tugas.avg, uh, uts, uas].filter(v=> v!==null);
+    const finalAvg = vals.length>0 ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null;
+    return { id:s.id, name:s.name, tugas, uh, uts, uas, finalAvg };
+  });
+
+  const rows = rowsData.map(r=> `
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td class="num-cell">${r.tugas.avg===null?'-':r.tugas.avg}${r.tugas.count>1?` <span style="color:var(--muted); font-size:0.7em;">(${r.tugas.count}x)</span>`:''}</td>
+      <td class="num-cell"><input type="number" min="0" max="100" value="${r.uh===null?'':r.uh}" placeholder="-" data-sid="${r.id}" data-cat="UH" onchange="setFixedGrade(this)"></td>
+      <td class="num-cell"><input type="number" min="0" max="100" value="${r.uts===null?'':r.uts}" placeholder="-" data-sid="${r.id}" data-cat="UTS" onchange="setFixedGrade(this)"></td>
+      <td class="num-cell"><input type="number" min="0" max="100" value="${r.uas===null?'':r.uas}" placeholder="-" data-sid="${r.id}" data-cat="UAS" onchange="setFixedGrade(this)"></td>
+      <td class="num-cell"><b>${r.finalAvg===null?'-':r.finalAvg}</b></td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `<table><thead><tr><th>Nama</th><th>Tugas Harian</th><th style="width:90px">UH</th><th style="width:90px">UTS</th><th style="width:90px">UAS</th><th>Rata-rata Akhir</th></tr></thead><tbody>${rows}</tbody></table>`;
+  window._lastKalkulator = { awal, akhir, rowsData };
+}
+window.setFixedGrade = function(inputEl){
+  const sid = inputEl.dataset.sid;
+  const cat = inputEl.dataset.cat;
+  const cls = state.classes[currentClass];
+  const raw = inputEl.value.trim();
+  if(!cls.gradesFixed[sid]) cls.gradesFixed[sid] = {};
+  if(raw===''){
+    delete cls.gradesFixed[sid][cat];
+  } else {
+    cls.gradesFixed[sid][cat] = Math.max(0, Math.min(100, Number(raw)));
+  }
+  save();
+  renderKalkulator();
+};
+el('kalkBulanAwal').addEventListener('change', renderKalkulator);
+el('kalkBulanAkhir').addEventListener('change', renderKalkulator);
+
+window.exportKalkulatorCSV = function(){
+  if(!window._lastKalkulator) return;
+  const { awal, akhir, rowsData } = window._lastKalkulator;
+  const header = ['Nama','Tugas Harian','UH','UTS','UAS','Rata-rata Akhir'];
+  const lines = [header.join(',')];
+  rowsData.forEach(r=>{
+    const line = [r.name, r.tugas.avg===null?'':r.tugas.avg, r.uh===null?'':r.uh, r.uts===null?'':r.uts, r.uas===null?'':r.uas, r.finalAvg===null?'':r.finalAvg];
+    lines.push(line.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `kalkulator-${currentClass}-${awal}_${akhir}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+
+/* ============ POIN ============ */
+const POINT_QUICK_VALUES = [2,4,6,8,10];
+
+function renderPoin(){
+  renderPoinForm();
+  renderPoinLeaderboard();
+  renderPoinRedeemForm();
+  renderPoinHistory();
+}
+
+function studentPoinBalance(cls, sid){
+  const earned = (cls.points||[]).filter(p=> p.studentId===sid).reduce((a,p)=> a+p.poin, 0);
+  const taken = (cls.pointRedemptions||[]).filter(p=> p.studentId===sid).reduce((a,p)=> a+p.poin, 0);
+  return { earned, taken, balance: earned-taken };
+}
+
+function renderPoinForm(){
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice().sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  const wrap = el('poinFormWrap');
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa. Tambahkan dulu di tab Siswa.</div>`;
+    return;
+  }
+  let rows = students.map(s=>`
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td>
+        <div class="point-quick" data-sid="${s.id}">
+          ${POINT_QUICK_VALUES.map(v=> `<button type="button" onclick="selectPoinValue('${s.id}',${v})" data-val="${v}">${v}</button>`).join('')}
+        </div>
+      </td>
+      <td><input type="text" placeholder="Keterangan (opsional)" id="poin-ket-${s.id}" style="min-width:160px;"></td>
+      <td><button class="btn small primary" onclick="submitPoin('${s.id}')">+ Beri Poin</button></td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Nama</th><th style="width:260px">Poin</th><th>Keterangan</th><th style="width:110px">Aksi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+const selectedPoin = {};
+window.selectPoinValue = function(sid, val){
+  selectedPoin[sid] = val;
+  const group = document.querySelector(`.point-quick[data-sid="${sid}"]`);
+  if(group){
+    group.querySelectorAll('button').forEach(b=> b.classList.toggle('active', Number(b.dataset.val)===val));
+  }
+};
+window.submitPoin = function(sid){
+  const val = selectedPoin[sid];
+  if(!val){ flashToast('Pilih jumlah poin dulu (2-10)', true); return; }
+  const date = el('poinDate').value || todayStr();
+  const ketInput = el('poin-ket-'+sid);
+  const keterangan = ketInput ? ketInput.value.trim() : '';
+  const cls = state.classes[currentClass];
+  if(!cls.points) cls.points = [];
+  cls.points.push({ id: uid(), studentId: sid, date, poin: val, keterangan });
+  save();
+  delete selectedPoin[sid];
+  if(ketInput) ketInput.value = '';
+  const group = document.querySelector(`.point-quick[data-sid="${sid}"]`);
+  if(group) group.querySelectorAll('button').forEach(b=> b.classList.remove('active'));
+  renderPoinLeaderboard();
+  renderPoinRedeemForm();
+  renderPoinHistory();
+  flashToast(`+${val} poin ditambahkan`);
+};
+
+function renderPoinLeaderboard(){
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice();
+  const totals = students.map(s=>{
+    const b = studentPoinBalance(cls, s.id);
+    return { name:s.name, ...b };
+  }).filter(t=> t.earned>0).sort((a,b)=> b.balance-a.balance);
+  const wrap = el('poinLeaderboard');
+  if(totals.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada poin yang diberikan.</div>`;
+    return;
+  }
+  const max = Math.max(...totals.map(t=>t.balance), 1);
+  let rows = totals.map((t,i)=> `
+    <div class="leaderboard-row">
+      <div class="leaderboard-rank">#${i+1}</div>
+      <div class="leaderboard-name">${escapeHtml(t.name)} <span style="color:var(--muted); font-size:0.72rem;">(dari ${t.earned} didapat${t.taken>0?`, ${t.taken} diambil`:''})</span></div>
+      <div class="leaderboard-bar-wrap"><div class="leaderboard-bar" style="width:${Math.max(6,(t.balance/max)*100)}%"></div></div>
+      <div class="point-badge">${t.balance} saldo</div>
+    </div>`).join('');
+  wrap.innerHTML = `<div style="background:var(--bg-card); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur); border:1px solid var(--line); border-radius:12px; overflow:hidden;">${rows}</div>`;
+}
+
+function renderPoinRedeemForm(){
+  const cls = state.classes[currentClass];
+  const students = cls.students.slice().sort((a,b)=> a.name.localeCompare(b.name,'id'))
+    .map(s=> ({ ...s, balance: studentPoinBalance(cls, s.id).balance }))
+    .filter(s=> s.balance>0);
+  const wrap = el('poinRedeemWrap');
+  if(students.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada siswa dengan saldo poin.</div>`;
+    return;
+  }
+  const options = students.map(s=> `<option value="${s.id}" data-balance="${s.balance}">${escapeHtml(s.name)} (saldo: ${s.balance})</option>`).join('');
+  wrap.innerHTML = `
+    <div class="toolbar" style="align-items:flex-end;">
+      <div class="field">
+        <label>Siswa</label>
+        <select id="redeemStudent" onchange="updateRedeemMax()">${options}</select>
+      </div>
+      <div class="field">
+        <label>Jumlah diambil (maks <span id="redeemMaxLabel">-</span>)</label>
+        <input type="number" min="1" id="redeemAmount" style="width:100px;">
+      </div>
+      <div class="field" style="flex:1; min-width:200px;">
+        <label>Keterangan</label>
+        <input type="text" id="redeemKet" placeholder="misal: disepakati tambah nilai UH">
+      </div>
+      <button class="btn primary" onclick="submitRedeem()">💳 Ambil Poin</button>
+    </div>`;
+  updateRedeemMax();
+}
+window.updateRedeemMax = function(){
+  const sel = el('redeemStudent');
+  if(!sel || !sel.options.length) return;
+  const max = sel.options[sel.selectedIndex].dataset.balance;
+  el('redeemMaxLabel').textContent = max;
+  el('redeemAmount').max = max;
+};
+window.submitRedeem = function(){
+  const sel = el('redeemStudent');
+  if(!sel || !sel.value){ flashToast('Belum ada siswa dipilih', true); return; }
+  const sid = sel.value;
+  const cls = state.classes[currentClass];
+  const balance = studentPoinBalance(cls, sid).balance;
+  const amountInput = el('redeemAmount');
+  const amount = Number(amountInput.value);
+  if(!amount || amount<1){ flashToast('Isi jumlah poin yang diambil', true); return; }
+  if(amount>balance){ flashToast(`Saldo tidak cukup (maks ${balance})`, true); return; }
+  const ket = el('redeemKet').value.trim();
+  if(!cls.pointRedemptions) cls.pointRedemptions = [];
+  cls.pointRedemptions.push({ id: uid(), studentId: sid, date: todayStr(), poin: amount, keterangan: ket });
+  save();
+  amountInput.value = '';
+  el('redeemKet').value = '';
+  renderPoinLeaderboard();
+  renderPoinRedeemForm();
+  renderPoinHistory();
+  flashToast(`${amount} poin diambil`);
+};
+
+function renderPoinHistory(){
+  const cls = state.classes[currentClass];
+  const studentMap = {};
+  cls.students.forEach(s=> studentMap[s.id]=s.name);
+  const earned = (cls.points||[]).map(p=> ({...p, type:'earn'}));
+  const taken = (cls.pointRedemptions||[]).map(p=> ({...p, type:'redeem'}));
+  const combined = [...earned, ...taken].sort((a,b)=> b.date.localeCompare(a.date)).slice(0,60);
+  const wrap = el('poinHistoryWrap');
+  if(combined.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada riwayat poin.</div>`;
+    return;
+  }
+  let rows = combined.map(p=> `
+    <tr>
+      <td class="num-cell">${fmtTanggalPendek(p.date)}</td>
+      <td>${escapeHtml(studentMap[p.studentId]||'(siswa dihapus)')}</td>
+      <td>${p.type==='earn' ? `<span class="point-badge">+${p.poin}</span>` : `<span class="point-badge" style="background:rgba(243,106,106,0.16); color:var(--bad); border-color:rgba(243,106,106,0.4);">-${p.poin}</span>`}</td>
+      <td>${escapeHtml(p.keterangan||'-')}</td>
+      <td><button class="icon-btn" onclick="removePoinEntry('${p.id}','${p.type}')">✕</button></td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table><thead><tr><th style="width:110px">Tanggal</th><th>Nama</th><th style="width:70px">Poin</th><th>Keterangan</th><th style="width:50px">Aksi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+window.removePoinEntry = function(id, type){
+  const cls = state.classes[currentClass];
+  if(type==='redeem'){
+    cls.pointRedemptions = (cls.pointRedemptions||[]).filter(p=> p.id!==id);
+  } else {
+    cls.points = (cls.points||[]).filter(p=> p.id!==id);
+  }
+  save();
+  renderPoinLeaderboard();
+  renderPoinRedeemForm();
+  renderPoinHistory();
+};
+
+/* ============ MATERI ============ */
+function weeksSince(dateStr){
+  const then = new Date(dateStr+'T00:00:00');
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diffDays = Math.floor((now - then) / 86400000);
+  return Math.floor(diffDays / 7);
+}
+function telatBadgeClass(weeks){
+  if(weeks<=0) return 'ok';
+  if(weeks===1) return 'warn';
+  return 'bad';
+}
+function telatLabel(weeks){
+  if(weeks<=0) return 'Update minggu ini';
+  if(weeks===1) return 'Telat 1 pekan';
+  return `Telat ${weeks} pekan`;
+}
+function getLastMateri(cls){
+  const entries = cls.materi || [];
+  if(entries.length===0) return null;
+  return entries.slice().sort((a,b)=> b.date.localeCompare(a.date))[0];
+}
+function renderMateri(){
+  const cls = state.classes[currentClass];
+  const last = getLastMateri(cls);
+  const summaryWrap = el('materiSummaryWrap');
+  if(!last){
+    summaryWrap.innerHTML = `<div class="empty-state">Belum ada catatan materi untuk kelas ini. Isi form di bawah untuk mulai mencatat.</div>`;
+  } else {
+    const weeks = weeksSince(last.date);
+    summaryWrap.innerHTML = `
+      <div class="materi-summary">
+        <div style="flex:1; min-width:200px;">
+          <div class="label">Materi Terakhir</div>
+          <div class="topik">${escapeHtml(last.topik)}</div>
+          <div class="tanggal">${fmtTanggalPanjang(last.date)}</div>
+        </div>
+        <div class="telat-badge ${telatBadgeClass(weeks)}">${telatLabel(weeks)}</div>
+      </div>`;
+  }
+  renderMateriHistory();
+}
+function renderMateriHistory(){
+  const cls = state.classes[currentClass];
+  const entries = (cls.materi||[]).slice().sort((a,b)=> b.date.localeCompare(a.date));
+  const wrap = el('materiHistoryWrap');
+  if(entries.length===0){
+    wrap.innerHTML = `<div class="empty-state">Belum ada riwayat materi.</div>`;
+    return;
+  }
+  let rows = entries.map(m=> `
+    <tr>
+      <td class="num-cell" style="width:140px;">${fmtTanggalPendek(m.date)}</td>
+      <td>${escapeHtml(m.topik)}</td>
+      <td style="width:50px;"><button class="icon-btn" onclick="removeMateriEntry('${m.id}')">✕</button></td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table><thead><tr><th>Tanggal</th><th>Materi / Topik</th><th>Aksi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+window.addMateriEntry = function(){
+  const date = el('materiDate').value || todayStr();
+  const topikInput = el('materiTopik');
+  const topik = topikInput.value.trim();
+  if(!topik){ flashToast('Isi materi/topiknya dulu', true); return; }
+  const cls = state.classes[currentClass];
+  if(!cls.materi) cls.materi = [];
+  cls.materi.push({ id: uid(), date, topik });
+  save();
+  topikInput.value = '';
+  renderMateri();
+};
+window.removeMateriEntry = function(id){
+  const cls = state.classes[currentClass];
+  cls.materi = (cls.materi||[]).filter(m=> m.id!==id);
+  save();
+  renderMateri();
+};
+
+/* ============ BACKUP / RESTORE ============ */
+
+
+window.exportBackup = function(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `backup-class-monitor-${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+el('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed.classes) throw new Error('format tidak valid');
+      askConfirm('Pulihkan data?', 'Ini akan menimpa seluruh data akunmu dengan isi file backup.', ()=>{
+        state = parsed;
+        ensureClassStructures();
+        save();
+        showHome();
+        flashToast('Data dipulihkan');
+      });
+    }catch(err){
+      alert('File backup tidak valid.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+</script>
+</body>
+</html>
